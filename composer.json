@@ -1,0 +1,19 @@
+{
+    "name": "ruskush/yii2-gii-crud-swagger",
+    "description": "Генератор CRUD для АПИ с аннотациями Swagger",
+    "type": "library",
+    "autoload": {
+        "psr-4": {
+            "ruskush\\giiCrudSwagger\\": "src"
+        }
+    },
+    "require": {
+        "yiisoft/yii2-gii": "2.*"
+    },
+    "repositories": [
+        {
+            "type": "composer",
+            "url": "https://asset-packagist.org"
+        }
+    ]
+}
