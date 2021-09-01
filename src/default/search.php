@@ -13,6 +13,8 @@ $searchModelClass = StringHelper::basename($generator->searchModelClass);
 if ($modelClass === $searchModelClass) {
     $modelAlias = $modelClass . 'Model';
 }
+$extendingClass = isset($modelAlias) ? $modelAlias : $modelClass;
+$returnModelClass = $generator->useResourceFile ? $generator->getResourceClassName() : $extendingClass;
 $rules = $generator->generateSearchRules();
 $labels = $generator->generateSearchLabels();
 $searchAttributes = $generator->getSearchAttributes();
@@ -26,18 +28,18 @@ namespace <?= StringHelper::dirname(ltrim($generator->searchModelClass, '\\')) ?
 use yii\base\Model;
 use yii\data\ActiveDataProvider;
 use <?= ltrim($generator->modelClass, '\\') . (isset($modelAlias) ? " as $modelAlias" : '') ?>;
+use yii\db\ActiveRecord;
 
 /**
  * <?= $searchModelClass ?> represents the model behind the search form of `<?= $generator->modelClass ?>`.
  */
-class <?= $searchModelClass ?> extends <?= isset($modelAlias) ? $modelAlias : $modelClass ?>
-
-{
+class <?= $searchModelClass ?> extends <?= $extendingClass ?> {
+    /** @var ActiveRecord $modelClass */
+    public $modelClass = \<?=$returnModelClass?>::class;
     /**
      * {@inheritdoc}
      */
-    public function rules()
-    {
+    public function rules() {
         return [
             <?= implode(",\n            ", $rules) ?>,
         ];
@@ -46,8 +48,7 @@ class <?= $searchModelClass ?> extends <?= isset($modelAlias) ? $modelAlias : $m
     /**
      * {@inheritdoc}
      */
-    public function scenarios()
-    {
+    public function scenarios() {
         // bypass scenarios() implementation in the parent class
         return Model::scenarios();
     }
@@ -59,9 +60,9 @@ class <?= $searchModelClass ?> extends <?= isset($modelAlias) ? $modelAlias : $m
      *
      * @return ActiveDataProvider
      */
-    public function search($params)
-    {
-        $query = <?= isset($modelAlias) ? $modelAlias : $modelClass ?>::find();
+    public function search($params) {
+        $modelClass = $this->modelClass;
+        $query = $modelClass::find();
 
         // add conditions that should always apply here
 

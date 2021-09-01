@@ -10,16 +10,21 @@ use yii\helpers\StringHelper;
 /* @var $generator ruskush\giiCrudSwagger\Generator */
 
 $controllerClass = StringHelper::basename($generator->controllerClass);
-$modelClass = StringHelper::basename($generator->modelClass);
+$modelClass = $generator->getModelClassName();
 $searchModelClass = StringHelper::basename($generator->searchModelClass);
 if ($modelClass === $searchModelClass) {
     $searchModelAlias = $searchModelClass . 'Search';
 }
+$fullModelClassName = $generator->useResourceFile ? $generator->getResourceClassName() : $generator->modelClass;
+$listDefinitionClassName = $generator->useCollectionEnvelope ? $generator->getDefinitionCollectionClassName() :
+    $modelClass;
 
 /* @var $class ActiveRecordInterface */
 $class = $generator->modelClass;
 $pks = $class::primaryKey();
 
+$modelFields = $generator->getmodelFields();
+$sortEnum = $generator->getSortEnum();
 echo "<?php\n";
 ?>
 
@@ -27,7 +32,7 @@ namespace <?= StringHelper::dirname(ltrim($generator->controllerClass, '\\')) ?>
 
 use Yii;
 use <?= ltrim($generator->baseControllerClass, '\\') ?>;
-use <?= ltrim($generator->modelClass, '\\') ?>;
+use <?= ltrim($fullModelClassName, '\\') ?>;
 <?php if (!empty($generator->searchModelClass)): ?>
 use <?= ltrim($generator->searchModelClass, '\\') . (isset($searchModelAlias) ? " as $searchModelAlias" : '') ?>;
 <?php else: ?>
@@ -46,16 +51,23 @@ use yii\rest\ViewAction;
 */
 class <?= $controllerClass ?> extends <?= StringHelper::basename($generator->baseControllerClass) . " {\n" ?>
     public $modelClass = <?= $modelClass ?>::class;
+<?php if ($generator->useCollectionEnvelope): ?>
+    public $serializer = [
+        'class' => \yii\rest\Serializer::class,
+        'collectionEnvelope' => '_items',
+    ];
+<?php endif; ?>
 
     /**
-    * {@inheritdoc}
-    */
+     * {@inheritdoc}
+     */
     public function behaviors(): array {
         return ArrayHelper::merge(parent::behaviors(), [
             'verbs' => [
                 'class' => VerbFilter::class,
                 'actions' => [
                     'list' => ['get'],
+                    'view' => ['get'],
                     'create' => ['post'],
                     'update' => ['patch', 'put'],
                     'delete' => ['delete'],
@@ -65,42 +77,109 @@ class <?= $controllerClass ?> extends <?= StringHelper::basename($generator->bas
     }
 
     public function actions(): array {
-        return[
+        $parentActions = parent::actions();
+        $actions = [
             /**
-            * @SWG\Post(path="<?= $generator->getCreateUrl() ?>",
+             * @SWG\Post(path="<?= $generator->getCreateUrl() ?>",
 <?php if (!empty($generator->swaggerTag)): ?>
-            *     tags={"<?= $generator->swaggerTag ?>"},
+             *     tags={"<?= $generator->swaggerTag ?>"},
 <?php endif; ?>
-            *     summary="Создать",
-            *     security={{"Bearer": {}}},
-            * )
-            */
+             *     summary="Создать",
+             *     security={{"Bearer": {}}},
+<?php foreach ($modelFields as $field): ?>
+<?php $required = $field['required'] ? 'true' : 'false' ?>
+             *     @SWG\Parameter(
+             *         name="<?=$field['name']?>",
+             *         description="<?=$field['comment']?>",
+             *         type="<?=$field['type']?>",
+             *         in="formData",
+             *         required=<?=$required?>,
+             *     ),
+<?php endforeach; ?>
+             *     @SWG\Response(
+             *         response = 201,
+             *         description="Объект созданной записи",
+             *         @SWG\Schema(ref = "#/definitions/<?=$modelClass?>")
+             *     )
+             * ),
+             */
             'create' => [
                 'class' => CreateAction::class,
                 'modelClass' => $this->modelClass,
             ],
             /**
-            * @SWG\Post(path="<?= $generator->getViewUrl() ?>",
+             * @SWG\Get(path="<?= $generator->getViewUrl() ?>",
 <?php if (!empty($generator->swaggerTag)): ?>
-            *     tags={"<?= $generator->swaggerTag ?>"},
+             *     tags={"<?= $generator->swaggerTag ?>"},
 <?php endif; ?>
-            *     summary="Просмотр записи",
-            *     security={{"Bearer": {}}},
-            * )
-            */
+             *     summary="Просмотр записи",
+             *     security={{"Bearer": {}}},
+<?php foreach ($modelFields as $field): ?>
+<?php if ($field['isPrimaryKey']): ?>
+             *     @SWG\Parameter(
+             *         name="<?=$field['name']?>",
+             *         description="<?=$field['comment']?>",
+             *         type="<?=$field['type']?>",
+             *         in="query",
+             *         required=true
+             *     ),
+<?php endif; ?>
+<?php endforeach; ?>
+             *     @SWG\Response(
+             *         response = 200,
+             *         description = "Объект записи",
+             *         @SWG\Schema(ref = "#/definitions/<?=$modelClass?>")
+             *     )
+             * )
+             */
             'view' => [
                 'class' => ViewAction::class,
                 'modelClass' => $this->modelClass,
             ],
             /**
-            * @SWG\Post(path="<?= $generator->getListUrl() ?>",
+             * @SWG\Get(path="<?= $generator->getListUrl() ?>",
 <?php if (!empty($generator->swaggerTag)): ?>
-            *     tags={"<?= $generator->swaggerTag ?>"},
+             *     tags={"<?= $generator->swaggerTag ?>"},
 <?php endif; ?>
-            *     summary="Список записей",
-            *     security={{"Bearer": {}}},
-            * )
-            */
+             *     summary="Список записей",
+             *     security={{"Bearer": {}}},
+<?php foreach ($modelFields as $field): ?>
+             *     @SWG\Parameter(
+             *         name="<?=$field['name']?>",
+             *         description="<?=$field['comment']?>",
+             *         type="<?=$field['type']?>",
+             *         in="query",
+             *         required=false,
+             *     ),
+<?php endforeach; ?>
+             *     @SWG\Parameter(
+             *         name="page",
+             *         description="Страница",
+             *         type="integer",
+             *         in="query",
+             *         required=false,
+             *     ),
+             *     @SWG\Parameter(
+             *         name="per-page",
+             *         description="Объектов на странице",
+             *         type="integer",
+             *         in="query",
+             *         required=false,
+             *     ),
+             *     @SWG\Parameter(
+             *         name="sort",
+             *         description="Сортировка столбцов",
+             *         type="string",
+             *         enum={<?=$sortEnum?>},
+             *         in="query"
+             *     ),
+             *     @SWG\Response(
+             *         response = 200,
+             *         description = "Список объектов",
+             *         @SWG\Schema(ref = "#/definitions/<?=$listDefinitionClassName?>")
+             *     )
+             * )
+             */
             'list' => [
                 'class' => IndexAction::class,
                 'modelClass' => $this->modelClass,
@@ -112,31 +191,66 @@ class <?= $controllerClass ?> extends <?= StringHelper::basename($generator->bas
 <?php endif; ?>
             ],
             /**
-            * @SWG\Post(path="<?= $generator->getUpdateUrl() ?>",
+             * @SWG\Patch(path="<?= $generator->getUpdateUrl() ?>",
 <?php if (!empty($generator->swaggerTag)): ?>
-            *     tags={"<?= $generator->swaggerTag ?>"},
+             *     tags={"<?= $generator->swaggerTag ?>"},
 <?php endif; ?>
-            *     summary="Редактировать",
-            *     security={{"Bearer": {}}},
-            * )
-            */
+             *     summary="Редактировать",
+             *     security={{"Bearer": {}}},
+<?php foreach ($modelFields as $field): ?>
+<?php $required = $field['required'] ? 'true' : 'false' ?>
+             *     @SWG\Parameter(
+             *         name="<?=$field['name']?>",
+             *         description="<?=$field['comment']?>",
+             *         type="<?=$field['type']?>",
+<?php if ($field['isPrimaryKey']): ?>
+             *         in="query",
+             *         required=true
+<?php else: ?>
+             *         in="formData"
+<?php endif; ?>
+             *     ),
+<?php endforeach; ?>
+             *     @SWG\Response(
+             *         response = 200,
+             *         description="Объект обновлённой записи",
+             *         @SWG\Schema(ref = "#/definitions/<?=$modelClass?>")
+             *     )
+             * )
+             */
             'update' => [
                 'class' => UpdateAction::class,
                 'modelClass' => $this->modelClass,
             ],
             /**
-            * @SWG\Post(path="<?= $generator->getDeleteUrl() ?>",
+             * @SWG\Delete(path="<?= $generator->getDeleteUrl() ?>",
 <?php if (!empty($generator->swaggerTag)): ?>
-            *     tags={"<?= $generator->swaggerTag ?>"},
+             *     tags={"<?= $generator->swaggerTag ?>"},
 <?php endif; ?>
-            *     summary="Удалить",
-            *     security={{"Bearer": {}}},
-            * )
-            */
+             *     summary="Удалить",
+             *     security={{"Bearer": {}}},
+<?php foreach ($modelFields as $field): ?>
+<?php if ($field['isPrimaryKey']): ?>
+             *     @SWG\Parameter(
+             *         name="<?=$field['name']?>",
+             *         description="<?=$field['comment']?>",
+             *         type="<?=$field['type']?>",
+             *         in="query",
+             *         required=true
+             *     ),
+<?php endif; ?>
+<?php endforeach; ?>
+             *     @SWG\Response(
+             *         response = 204,
+             *         description = "Запись удалена",
+             *     ),
+             * )
+             */
             'delete' => [
                 'class' => DeleteAction::class,
                 'modelClass' => $this->modelClass,
             ],
         ];
+        return ArrayHelper::merge($parentActions, $actions);
     }
 }
