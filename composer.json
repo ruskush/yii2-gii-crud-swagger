@@ -2,6 +2,12 @@
     "name": "ruskush/yii2-gii-crud-swagger",
     "description": "Генератор CRUD для АПИ с аннотациями Swagger",
     "type": "library",
+    "authors": [
+        {
+            "name": "Ruslan Kushnir",
+            "email": "ruslan.kushnir.2010@gmail.com"
+        }
+    ],
     "autoload": {
         "psr-4": {
             "ruskush\\giiCrudSwagger\\": "src"
