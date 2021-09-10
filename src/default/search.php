@@ -34,7 +34,6 @@ use yii\db\ActiveRecord;
  * <?= $searchModelClass ?> represents the model behind the search form of `<?= $generator->modelClass ?>`.
  */
 class <?= $searchModelClass ?> extends <?= $extendingClass ?> {
-    /** @var ActiveRecord $modelClass */
     public $modelClass = \<?=$returnModelClass?>::class;
     /**
      * {@inheritdoc}
@@ -61,6 +60,7 @@ class <?= $searchModelClass ?> extends <?= $extendingClass ?> {
      * @return ActiveDataProvider
      */
     public function search($params) {
+        /** @var ActiveRecord $modelClass */
         $modelClass = $this->modelClass;
         $query = $modelClass::find();
 
